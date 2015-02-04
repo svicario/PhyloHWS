@@ -35,6 +35,17 @@ def Upload(File, session):
     dav.close()
     return url
 
+def UploadAndSubmitJST(arguments,name,session,mail):
+     """
+     highlevel function
+     """
+     FILES=[]
+     for key,value in arguments.items():
+         if "read" in dir(value):
+                 arguments[key]=Upload(value,session)
+     jobid=submitJST(arguments,name,session,mail)
+     return jobid 
+
 def submitJST(arguments={},name="",session="",mail=""):
     """
     submit a job of JST WS
