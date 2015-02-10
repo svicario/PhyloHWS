@@ -4,16 +4,46 @@ import davlib
 import os
 import xml.etree.ElementTree as ET
 import random
+import json
+
+#davlib is taken from Python_WebDAV_library 0.4.2
+
+urlwebdav='testjst.ba.infn.it'
+
+def getInfo(MethodNumber=None):
+    """
+    Get Info on method available on JST WS and of specific input needs of each one
+    Info are stored on biodiversitycatalogue
+    """
+    if not MethodNumber:
+        A= urllib.urlopen("https://www.biodiversitycatalogue.org/rest_services/23.xml")
+        Response=A.read()
+        Element = ET.fromstring(Response)
+        ElementA=Element.findall("./{http://www.biocatalogue.org/2009/xml/rest}resources/{http://www.biocatalogue.org/2009/xml/rest}restResource")
+        Info=[]
+        for x in  ElementA:
+            url=x.attrib["{http://www.w3.org/1999/xlink}href"]
+            A=urllib.urlopen(url+".json").read()
+            Info.append(json.loads(A)['rest_resource'])
+    elif MethodNumber:
+        url="https://www.biodiversitycatalogue.org/rest_methods/"+MethodNumber+"/inputs"
+        Inputspec=json.loads(urllib.urlopen(url+".json").read())
+        Info=Inputspec[u'rest_method']
+    return Info
 
 
-def Upload(File, session):    
-    #setup connection and make directory
-    url='testjst.ba.infn.it'
-    dav = davlib.DAV(url, protocol="http") 
-    resp = dav.mkcol("/openacces/"+session)
+def MakeDirectory(foldername):
+    dav = davlib.DAV(urlwebdav, protocol="http") 
+    resp = dav.mkcol("/openacces/"+foldername)
     if not (200 <= resp.status < 302):
         raise Exception(resp.read())
     dav.close()
+
+
+def Upload(File, path=None, makepath=False):
+    if makepath:
+        #setup connection and make directory
+        MakeDirectory(path)
     #grab file
     try:
         A=File.read()
@@ -26,29 +56,19 @@ def Upload(File, session):
         filepath=File.name
         File.close()
     #reopen connection to upload file content
-    dav = davlib.DAV(url, protocol="http")
+    dav = davlib.DAV(urlwebdav, protocol="http")
     filename=os.path.basename(filepath)
-    resp = dav.put("/openacces/"+session+"/"+filename, A)
+    resp = dav.put("/openacces/"+path+"/"+filename, A)
     url=resp.getheader("location")
     if not (200 <= resp.status < 300):
         raise Exception(resp.read())
     dav.close()
     return url
 
-def UploadAndSubmitJST(arguments,name,session,mail):
-     """
-     highlevel function
-     """
-     FILES=[]
-     for key,value in arguments.items():
-         if "read" in dir(value):
-                 arguments[key]=Upload(value,session)
-     jobid=submitJST(arguments,name,session,mail)
-     return jobid 
 
 def submitJST(arguments={},name="",session="",mail=""):
     """
-    submit a job of JST WS
+    submit a job to JST WS
     """
     #compose the call
     argumentsString=" ".join([x+"::"+arguments[x] for x in arguments])
@@ -65,6 +85,23 @@ def submitJST(arguments={},name="",session="",mail=""):
     Element=Element.find(".//JobId")
     jobid=Element.text
     return jobid
+
+
+def UploadAndSubmitJST(arguments,name,session,mail):
+     """
+     highlevel function
+     """
+     FILES=[]
+     first=True
+     for key,value in arguments.items():
+         if "read" in dir(value):
+            if first:
+                MakeDirectory(session)
+                first=False
+            arguments[key]=Upload(value,session)
+     jobid=submitJST(arguments,name,session,mail)
+     return jobid 
+
 
 def retrive(IdJob):
     """
@@ -83,6 +120,7 @@ def retrive(IdJob):
     Element=ElementR.find(".//Output")
     output=Element.text
     return output,stdoutput
+
 
 if __name__ == '__main__':
     treepath="tree.txt"

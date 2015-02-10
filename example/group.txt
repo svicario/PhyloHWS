@@ -1,0 +1,6 @@
+even	c
+random	q
+clump2a	a
+clump2b	a
+clump4	a
+clump1	a
